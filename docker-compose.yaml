@@ -1,4 +1,18 @@
 services:
+  backend-producer:
+    build:
+      context: .
+      dockerfile: ./cmd/producer/Dockerfile
+    container_name: task-queue-producer
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - REDIS_ADDRESS=redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
   redis:
     image: redis:8.8.0-alpine
     container_name: task-queue-redis
@@ -15,7 +29,25 @@ services:
       retries: 3
       start_period: 30s 
       start_interval: 5s
+  redis-test:
+    image: redis:8.8.0-alpine
+    container_name: task-queue-redis-test
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-test-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s 
+      timeout: 10s
+      retries: 3
+      start_period: 30s 
+      start_interval: 5s
 
 volumes:
   redis-data:
+    driver: local
+  redis-test-data:
     driver: local
