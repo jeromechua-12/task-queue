@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/jeromechua-12/task-queue/internal/broker"
-	"github.com/jeromechua-12/task-queue/internal/models"
+	"github.com/jeromechua-12/task-queue/internal/worker"
 
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -38,14 +35,9 @@ func main() {
 	// initialise broker
 	broker := broker.New(redisClient)
 
-	// enqueue sample tasks
-	sampleTasks := getSampleTasks()
-	for _, task := range sampleTasks {
-		err := broker.Enqueue(ctx, task)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	// initialise worker
+	worker := worker.New(broker)
+	worker.WaitOrExecuteTask(ctx)
 }
 
 func openRedis(ctx context.Context, options *redis.Options) (*redis.Client, error) {
@@ -55,25 +47,4 @@ func openRedis(ctx context.Context, options *redis.Options) (*redis.Client, erro
 		return nil, err
 	}
 	return rdb, nil
-}
-
-func getSampleTasks() []models.Task {
-	var tasks []models.Task
-
-	// generate 100 tasks with random priortity between 1-5
-	for i := 0; i < 100; i++ {
-		task := models.Task{
-			ID:        fmt.Sprintf("uuid-%d", i),
-			Name:      "some_function",
-			CreatedAt: time.Now().UTC(),
-			Options: models.TaskOptions{
-				Priority:      rand.Intn(5) + 1,
-				Delay:         0,
-				MaxRetries:    3,
-				TotalAttempts: 0,
-			},
-		}
-		tasks = append(tasks, task)
-	}
-	return tasks
 }

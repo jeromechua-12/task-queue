@@ -2,19 +2,9 @@ package models
 
 import "time"
 
-type TaskStatus string
-
-const (
-	StatusPending    TaskStatus = "pending"
-	StatusProcessing TaskStatus = "processing"
-	StatusCompleted  TaskStatus = "completed"
-	StatusError      TaskStatus = "error"
-)
-
 type Task struct {
 	ID        string      `json:"id"`
 	Name      string      `json:"name"`
-	Status    TaskStatus  `json:"status"`
 	CreatedAt time.Time   `json:"createdAt"`
 	Options   TaskOptions `json:"options"`
 }

@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -29,19 +30,19 @@ func cleanTestRedis(t *testing.T, rdb *redis.Client) {
 	rdb.FlushAll(context.TODO())
 }
 
-func TestEnqueue(t *testing.T) {
+func TestEnqueueDequeue(t *testing.T) {
 	client := newTestRedis(t)
 	t.Cleanup(func() {
 		cleanTestRedis(t, client)
 	})
 
+	ctx := context.TODO()
 	broker := Broker{redisClient: client}
 
 	tasks := []models.Task{
 		{
 			ID:        "1",
 			Name:      "send_email",
-			Status:    models.StatusPending,
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      2,
@@ -53,7 +54,6 @@ func TestEnqueue(t *testing.T) {
 		{
 			ID:        "2",
 			Name:      "send_email",
-			Status:    models.StatusPending,
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      1,
@@ -65,7 +65,6 @@ func TestEnqueue(t *testing.T) {
 		{
 			ID:        "3",
 			Name:      "send_email",
-			Status:    models.StatusPending,
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      2,
@@ -77,9 +76,35 @@ func TestEnqueue(t *testing.T) {
 	}
 
 	for _, task := range tasks {
-		err := broker.Enqueue(context.TODO(), task)
+		err := broker.Enqueue(ctx, task)
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	expectedDequeueOrder := [3]int{1, 0, 2}
+	for _, idx := range expectedDequeueOrder {
+		task, err := broker.DequeueTask(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if task == nil {
+			t.Errorf("got nil; want %v", tasks[idx])
+		}
+
+		if equal := reflect.DeepEqual(*task, tasks[idx]); !equal {
+			t.Errorf("got %v; want %v", *task, tasks[idx])
+		}
+	}
+
+	// next dequeue should return nil
+	task, err := broker.DequeueTask(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if task != nil {
+		t.Errorf("got %v; want nil", *task)
 	}
 }
