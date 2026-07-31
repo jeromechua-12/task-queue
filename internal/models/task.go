@@ -10,8 +10,9 @@ type Task struct {
 }
 
 type TaskOptions struct {
-	Priority      int `json:"priority"` // priority from 1-5, lower = higher priority
-	Delay         int `json:"delay"`    // delay before execution in seconds
-	MaxRetries    int `json:"maxRetries"`
-	TotalAttempts int `json:"totalAttempts"` // attempts made
+	Priority      int   `json:"priority"` // priority from 1-5, lower = higher priority
+	Delay         int64 `json:"delay"`    // delay before execution in seconds
+	MaxRetries    int   `json:"maxRetries"`
+	RetryDelay    int64 `json:"retryDelay"`    // delay before retry in seconds
+	TotalAttempts int   `json:"totalAttempts"` // attempts made
 }

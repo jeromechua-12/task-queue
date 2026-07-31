@@ -30,18 +30,19 @@ func New(client *redis.Client) *Broker {
 }
 
 /*
-Adds a Task to Redis Sorted Set for tasks that are ready to be processed.
+Adds a Task that is ready to be processed into Redis Sorted Set.
+Tasks are sorted by priority.
 
-First add mapping of task id to a Task serialised JSON object.
-Then add the task id to redis priority queue.
+First add mapping of task id to a serialised Task into a Redis Hash.
+Then add the task id to Redis Sorted Set.
 */
-func (b *Broker) Enqueue(ctx context.Context, task models.Task) error {
-	err := b.addTaskToSet(ctx, models.TaskHash, &task)
+func (b *Broker) EnqueueTask(ctx context.Context, task models.Task) error {
+	err := b.addTaskToHash(ctx, models.TaskHash, &task)
 	if err != nil {
 		return err
 	}
 
-	err = b.addIDToQueue(ctx, models.ReadyQueue, task.ID, task.Options.Priority)
+	err = b.addIDToQueue(ctx, models.ReadyQueue, task.ID, float64(task.Options.Priority))
 	if err != nil {
 		return err
 	}
@@ -50,10 +51,11 @@ func (b *Broker) Enqueue(ctx context.Context, task models.Task) error {
 }
 
 /*
-Dequeues task from Redis Sorted Set storing tasks that are ready to be processed.
+Pops a Task that is ready to be processed from Redis Sorted Set.
+Tasks are popped by priority.
 
 Perform Redis Eval on lua script that calls redis ZPOPMIN and HGET.
-Lua sceripts guarentees atomic execution.
+Lua scripts guarentees atomic execution.
 
 Returns a pointer to a Task.
 */
@@ -90,18 +92,43 @@ func (b *Broker) DequeueTask(ctx context.Context) (*models.Task, error) {
 	return &task, nil
 }
 
-// Adds a Task id to Redis Sorted Set, scored by priority
-func (b *Broker) addIDToQueue(ctx context.Context, queue string, id string, priority int) error {
+/*
+Adds a Task scheduled for a later execution into Redis Sorted Set.
+Scheduled time is calculated by created time + delay.
+
+Tasks are sorted by execution time in UTC Unix timestamp.
+
+First add mapping of task id to a serialised Task into a Redis Hash.
+Then add the task id to Redis Sorted Set.
+*/
+func (b *Broker) ScheduleTask(ctx context.Context, task models.Task) error {
+	executionTime := task.CreatedAt.UTC().Unix() + task.Options.Delay
+
+	err := b.addTaskToHash(ctx, models.TaskHash, &task)
+	if err != nil {
+		return err
+	}
+
+	err = b.addIDToQueue(ctx, models.DelayQueue, task.ID, float64(executionTime))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Adds a Task id to Redis Sorted Set, scored by priority.
+func (b *Broker) addIDToQueue(ctx context.Context, queue string, id string, priority float64) error {
 	z := redis.Z{
-		Score:  float64(priority),
+		Score:  priority,
 		Member: id,
 	}
 
 	return b.redisClient.ZAdd(ctx, queue, z).Err()
 }
 
-// Maps Task ID to a Task in serialised JSON in a Redis Hash
-func (b *Broker) addTaskToSet(ctx context.Context, hashKey string, task *models.Task) error {
+// Adds a mapping of Task ID to a serialised Task into a Redis Hash.
+func (b *Broker) addTaskToHash(ctx context.Context, hashKey string, task *models.Task) error {
 	data, err := json.Marshal(task)
 	if err != nil {
 		return err
@@ -110,7 +137,7 @@ func (b *Broker) addTaskToSet(ctx context.Context, hashKey string, task *models.
 	return b.redisClient.HSet(ctx, hashKey, task.ID, data).Err()
 }
 
-// Reads lua scripts and return file content
+// Reads lua scripts and return file content.
 func readScript(filepath string) (string, error) {
 	bytes, err := fs.ReadFile(filepath)
 	if err != nil {

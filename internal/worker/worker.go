@@ -41,6 +41,6 @@ func (w *Worker) WaitOrExecuteTask(ctx context.Context) {
 
 		// Random execution time between 1-2 seconds
 		seconds := rand.Float32() + 1
-		time.Sleep(time.Duration(seconds) * time.Millisecond)
+		time.Sleep(time.Duration(seconds) * time.Second)
 	}
 }

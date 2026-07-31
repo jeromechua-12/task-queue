@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"time"
 
@@ -41,7 +41,16 @@ func main() {
 	// enqueue sample tasks
 	sampleTasks := getSampleTasks()
 	for _, task := range sampleTasks {
-		err := broker.Enqueue(ctx, task)
+		err := broker.EnqueueTask(ctx, task)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// schedule sample tasks
+	sampleScheduledTask := getScheduledSampleTasks()
+	for _, task := range sampleScheduledTask {
+		err := broker.ScheduleTask(ctx, task)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -67,13 +76,41 @@ func getSampleTasks() []models.Task {
 			Name:      "some_function",
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
-				Priority:      rand.Intn(5) + 1,
-				Delay:         0,
+				Priority:      rand.IntN(5) + 1,
+				RetryDelay:    0,
 				MaxRetries:    3,
 				TotalAttempts: 0,
 			},
 		}
 		tasks = append(tasks, task)
 	}
+	return tasks
+}
+
+func getScheduledSampleTasks() []models.Task {
+	var tasks []models.Task
+
+	// generate 50 tasks with random priority between 1-5 and random delays 
+	for i := 0; i < 50; i++ {
+		task := models.Task{
+			ID:        fmt.Sprintf("uuid-scheduled-%d", i),
+			Name:      "some_function",
+			CreatedAt: time.Now().UTC(),
+			Options: models.TaskOptions{
+				Priority:      rand.IntN(5) + 1,
+				RetryDelay:    0,
+				MaxRetries:    3,
+				TotalAttempts: 0,
+			},
+		}
+		// generate random delay in seconds betwen 30 mins and 2 days
+		randMinDelay := int64(time.Duration(30) * time.Minute / time.Second) // 30 mins
+		randMaxDelay := int64(time.Duration(48) * time.Hour / time.Second)   // 2 days
+		randDelay := rand.Int64N(randMaxDelay-randMinDelay) + randMinDelay
+		task.Options.Delay = randDelay
+
+		tasks = append(tasks, task)
+	}
+
 	return tasks
 }

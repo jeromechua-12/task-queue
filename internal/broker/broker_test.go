@@ -46,7 +46,7 @@ func TestEnqueueDequeue(t *testing.T) {
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      2,
-				Delay:         0,
+				RetryDelay:    0,
 				MaxRetries:    3,
 				TotalAttempts: 0,
 			},
@@ -57,7 +57,7 @@ func TestEnqueueDequeue(t *testing.T) {
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      1,
-				Delay:         0,
+				RetryDelay:    0,
 				MaxRetries:    3,
 				TotalAttempts: 0,
 			},
@@ -68,7 +68,7 @@ func TestEnqueueDequeue(t *testing.T) {
 			CreatedAt: time.Now().UTC(),
 			Options: models.TaskOptions{
 				Priority:      2,
-				Delay:         0,
+				RetryDelay:    0,
 				MaxRetries:    3,
 				TotalAttempts: 0,
 			},
@@ -76,7 +76,7 @@ func TestEnqueueDequeue(t *testing.T) {
 	}
 
 	for _, task := range tasks {
-		err := broker.Enqueue(ctx, task)
+		err := broker.EnqueueTask(ctx, task)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,5 +106,79 @@ func TestEnqueueDequeue(t *testing.T) {
 
 	if task != nil {
 		t.Errorf("got %v; want nil", *task)
+	}
+}
+
+func TestScheduleTask(t *testing.T) {
+	client := newTestRedis(t)
+	t.Cleanup(func() {
+		cleanTestRedis(t, client)
+	})
+
+	ctx := context.TODO()
+	broker := Broker{redisClient: client}
+
+	tasks := []models.Task{
+		{
+			ID:        "uuid-1",
+			Name:      "send_email",
+			CreatedAt: time.Now().UTC(),
+			Options: models.TaskOptions{
+				Priority:      2,
+				Delay:         int64(48 * time.Hour / time.Second),
+				RetryDelay:    0,
+				MaxRetries:    3,
+				TotalAttempts: 0,
+			},
+		},
+		{
+			ID:        "uuid-2",
+			Name:      "send_email",
+			CreatedAt: time.Now().UTC(),
+			Options: models.TaskOptions{
+				Priority:      1,
+				Delay:         int64(6 * time.Hour / time.Second),
+				RetryDelay:    0,
+				MaxRetries:    3,
+				TotalAttempts: 0,
+			},
+		},
+		{
+			ID:        "uuid-3",
+			Name:      "send_email",
+			CreatedAt: time.Now().UTC(),
+			Options: models.TaskOptions{
+				Priority:      3,
+				Delay:         int64(30 * time.Minute / time.Second),
+				RetryDelay:    0,
+				MaxRetries:    3,
+				TotalAttempts: 0,
+			},
+		},
+	}
+
+	for _, task := range tasks {
+		err := broker.ScheduleTask(ctx, task)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	expectedDequeueOrder := []int{2, 1, 0}
+	for _, idx := range expectedDequeueOrder {
+		result, err := client.ZPopMin(ctx, "taskqueue:delay", 1).Result()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		taskID, ok := result[0].Member.(string)
+		if !ok {
+			t.Errorf("type assertion of Task ID failed")
+		}
+
+		wantID := tasks[idx].ID
+		if taskID != wantID {
+			t.Errorf("got %s; want %s\n", taskID, wantID)
+		}
 	}
 }
