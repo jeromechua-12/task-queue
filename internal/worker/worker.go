@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jeromechua-12/task-queue/internal/broker"
+	"github.com/jeromechua-12/task-queue/internal/models"
 )
 
 type Worker struct {
@@ -43,4 +44,16 @@ func (w *Worker) WaitOrExecuteTask(ctx context.Context) {
 		seconds := rand.Float32() + 1
 		time.Sleep(time.Duration(seconds) * time.Second)
 	}
+}
+
+// Schedules a failed task for retry.
+func (w *Worker) RetryTask(ctx context.Context, task models.Task) {
+}
+
+/*
+Returns execution time for delayed task in UTC Unix timestamp.
+
+Apply exponential delay based on number of retries attempted.
+*/
+func (w *Worker) getDelayTime(task models.Task) {
 }

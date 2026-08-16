@@ -117,6 +117,16 @@ func (b *Broker) ScheduleTask(ctx context.Context, task models.Task) error {
 	return nil
 }
 
+// Adds a Task for retry. Task is added into the same Redis Sorted Set as other scheduled tasks.
+func (b *Broker) RetryTask(ctx context.Context, task models.Task, retryTime int64) error {
+	err := b.addIDToQueue(ctx, models.DelayQueue, task.ID, float64(retryTime))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Adds a Task id to Redis Sorted Set, scored by priority.
 func (b *Broker) addIDToQueue(ctx context.Context, queue string, id string, priority float64) error {
 	z := redis.Z{
