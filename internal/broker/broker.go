@@ -37,7 +37,7 @@ First add mapping of task id to a serialised Task into a Redis Hash.
 Then add the task id to Redis Sorted Set.
 */
 func (b *Broker) EnqueueTask(ctx context.Context, task models.Task) error {
-	err := b.addTaskToHash(ctx, models.TaskHash, &task)
+	err := b.AddTaskToHash(ctx, models.TaskHash, &task)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ Then add the task id to Redis Sorted Set.
 func (b *Broker) ScheduleTask(ctx context.Context, task models.Task) error {
 	executionTime := task.CreatedAt.UTC().Unix() + task.Options.Delay
 
-	err := b.addTaskToHash(ctx, models.TaskHash, &task)
+	err := b.AddTaskToHash(ctx, models.TaskHash, &task)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (b *Broker) ScheduleTask(ctx context.Context, task models.Task) error {
 }
 
 // Adds a Task for retry. Task is added into the same Redis Sorted Set as other scheduled tasks.
-func (b *Broker) RetryTask(ctx context.Context, task models.Task, retryTime int64) error {
+func (b *Broker) RetryTask(ctx context.Context, task *models.Task, retryTime int64) error {
 	err := b.addIDToQueue(ctx, models.DelayQueue, task.ID, float64(retryTime))
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (b *Broker) addIDToQueue(ctx context.Context, queue string, id string, prio
 }
 
 // Adds a mapping of Task ID to a serialised Task into a Redis Hash.
-func (b *Broker) addTaskToHash(ctx context.Context, hashKey string, task *models.Task) error {
+func (b *Broker) AddTaskToHash(ctx context.Context, hashKey string, task *models.Task) error {
 	data, err := json.Marshal(task)
 	if err != nil {
 		return err
